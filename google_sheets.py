@@ -18,6 +18,9 @@ class GoogleSheets:
         data = body["Data"]
         output = []
         for row in data[1:]:
+            if (len(row[0]) == 0):
+                break
+            
             formattedRow = {
                 'workoutname': row[0],
                 'region': row[1],
@@ -40,8 +43,8 @@ class GoogleSheets:
                 'submittername': row[18],
                 'submitteremail': row[19],
                 'entryid': row[20],
-                'createdtimestamp': row[21],
-                'updatedtimestamp': row[22],
+                'createdtimestamp': self.remove_non_timestamp(row[21]),
+                'updatedtimestamp': self.remove_non_timestamp(row[22]),
                 'isapproved': row[23]
             }
             output.append(formattedRow)
@@ -54,3 +57,9 @@ class GoogleSheets:
             return False
         else:
             return None
+
+    def remove_non_timestamp(self, input: str) -> str|None:
+        if (input == "0000-00-00 00:00:00"):
+            return None
+        else:
+            return input
