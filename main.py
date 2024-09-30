@@ -18,12 +18,12 @@ google_sheets = GoogleSheets()
 workouts = google_sheets.get_all_workouts()
 logging.info("Pulled " + str(len(workouts)) + ".")
 
+logging.info("Getting input variables.")
 instance_connection_name = os.environ["INSTANCE_CONNECTION_NAME"]
 db_user = os.environ["DB_USER"]
 db_pass = os.environ["DB_PASS"]
 db_name = os.environ["DB_NAME"]
 
-# initialize Cloud SQL Python Connector object
 connector = Connector()
 
 def getconn() -> pg8000.dbapi.Connection:
@@ -37,15 +37,16 @@ def getconn() -> pg8000.dbapi.Connection:
     )
     return conn
 
-# The Cloud SQL Python Connector can be used with SQLAlchemy
-# using the 'creator' argument to 'create_engine'
+logging.info("Creating PostgreSQL engine.")
 pool = create_engine(
     "postgresql+pg8000://",
     creator=getconn
 )
 
+logging.info("Connecting to '" + instance_connection_name + "' with username '" + db_user + "', database '" + db_name + "', password '" + db_pass + "'.")
 with pool.connect() as db_conn:
     
+    logging.info("Loading table 'gravityformworkouts'.")
     table = Table('gravityformworkouts',MetaData(), autoload_with=pool)
     
     logging.info("Deleting workouts currently in GCP.")
@@ -62,4 +63,4 @@ with pool.connect() as db_conn:
         logging.info("All workouts written. Committing.")
         db_conn.commit()
 
-print("done")
+print("Done.")
