@@ -43,7 +43,7 @@ pool = create_engine(
     creator=getconn
 )
 
-logging.info("Connecting to '" + instance_connection_name + "' with username '" + db_user + "', database '" + db_name + "', password '" + db_pass + "'.")
+logging.info("Connecting to '" + instance_connection_name + "' with username '" + db_user + "', database '" + db_name + "'.")
 with pool.connect() as db_conn:
     
     logging.info("Loading table 'gravityformworkouts'.")
