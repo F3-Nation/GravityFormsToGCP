@@ -66,4 +66,4 @@ with pool.connect() as db_conn:
 logging.info("Done.")
 
 def app():
-    a = 1
+    exit()
