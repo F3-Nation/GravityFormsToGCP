@@ -65,4 +65,5 @@ with pool.connect() as db_conn:
 
 logging.info("Done.")
 
-app = 1
+def app():
+    a = 1
