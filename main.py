@@ -1,5 +1,6 @@
 import os
 import logging
+import requests
 
 from google_sheets import GoogleSheets
 
@@ -64,6 +65,7 @@ with pool.connect() as db_conn:
         db_conn.commit()
 
 logging.info("Done.")
+
 
 def app():
     exit()
