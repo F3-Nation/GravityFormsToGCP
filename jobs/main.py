@@ -1,6 +1,5 @@
 import os
 import logging
-import requests
 
 from google_sheets import GoogleSheets
 
