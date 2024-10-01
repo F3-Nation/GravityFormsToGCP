@@ -2,4 +2,3 @@ cloud-sql-python-connector[pg8000]
 sqlalchemy
 requests
 google-cloud-logging
-gunicorn
