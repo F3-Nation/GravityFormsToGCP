@@ -66,3 +66,9 @@ def app():
             db_conn.commit()
 
     logging.info("Done.")
+
+if __name__ == "__main__":
+    try:
+        app()
+    except Exception as error:
+        logging.error("Could not run job. Error: " + str(error))
