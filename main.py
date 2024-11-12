@@ -1,7 +1,6 @@
 import os
 import logging
 
-from google_sheets import GoogleSheets
 from gravity_forms import GravityForms, OrgTypes
 
 from google.cloud.sql.connector import Connector, IPTypes
@@ -52,11 +51,15 @@ def app():
         orgTypeAreaId = orgTypes.loc["Area", "id"]
         orgTypeRegionId = orgTypes.loc["Region", "id"]
 
+        logging.info("Loading metadata (columns) for tables.")
+        tableOrgs = Table('orgs',MetaData(), autoload_with=pool)
+        tableLocations = Table('locations',MetaData(), autoload_with=pool)
+        tableEvents = Table('events',MetaData(), autoload_with=pool)
+
         #############################################
         # Sectors
 
         logging.info("Loading metadata for table 'orgs'.")
-        tableOrgs = Table('orgs',MetaData(), autoload_with=pool)
         
         sectors = [
             {'org_type_id': orgTypeSectorId, 'name': "West", 'is_active': True},
@@ -91,6 +94,7 @@ def app():
                 'is_active': True
             })
 
+        logging.info("Inserting Areas into 'orgs' table")
         for area in areas:
             #db_conn.execute(tableOrgs.insert().values(area))
             a=1
@@ -107,7 +111,7 @@ def app():
         regions = []
         for region_gf in regions_gf:
             regions.append({
-                'org_type_id': orgTypeSectorId,
+                'org_type_id': orgTypeRegionId,
                 'parent_id': orgAreas.loc[region_gf["Area"], "id"],
                 'name': region_gf["Region Name"],
                 'is_active': True,
@@ -117,28 +121,42 @@ def app():
                 'facebook': region_gf["Region Website"] if 'facebook.com' in region_gf["Region Website"] or 'fb.me' in region_gf["Region Website"] else None
             })
 
+        logging.info("Inserting Regions into 'orgs' table")
         for region in regions:
             #db_conn.execute(tableOrgs.insert().values(region))
             a=1
 
         db_conn.commit()
 
-        logging.info("Loading table 'gravityformworkouts'.")
-        table = Table('gravityformworkouts',MetaData(), autoload_with=pool)
-        
-        logging.info("Deleting workouts currently in GCP.")
-        db_conn.execute(table.delete())
-        logging.info("Deletion complete (not yet committed).")
+        #############################################
+        # Locations
 
-        logging.info("Writing workouts one at a time.")
-        try:
-            for workout in workouts:
-                db_conn.execute(table.insert().values(workout))
-        except Exception as error:
-            logging.error("Could not write data to GCP. Not updating table. Error: " + str(error))
-        else:
-            logging.info("All workouts written. Committing.")
-            db_conn.commit()
+        logging.info("Reading 'orgs' table to get region IDs")
+        orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
+        orgRegionsa = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId) + " AND name = 'Richmond (TX)'", db_conn, "name")
+
+        aos_gf = gravity_forms.get_entries(OrgTypes.AO)
+        locations = []
+        for location_gf in aos_gf:
+            locations.append({
+                'org_id': orgRegions.loc[location_gf["Region"], "id"],
+                'name': location_gf["Workout Name"] + " (" + location_gf["Day of the Week"] + ")",
+                'is_active': True,
+                'lat': location_gf["Latitude"],
+                'lon': location_gf["Longitude"],
+                'address_street': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Street Address"] + " " + location_gf["Address Address Line 2"],
+                'address_city': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address City"],
+                'address_state': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address State / Province / Region"],
+                'address_zip': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address ZIP / Postal Code"],
+                'address_country': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Country"]
+            })
+
+        logging.info("Inserting Locations into 'locations' table")
+        for location in locations:
+            db_conn.execute(tableLocations.insert().values(location))
+            a=1
+
+        db_conn.commit()
 
     logging.info("Done.")
 
