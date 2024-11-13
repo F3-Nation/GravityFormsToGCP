@@ -133,7 +133,6 @@ def app():
 
         logging.info("Reading 'orgs' table to get region IDs")
         orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
-        orgRegionsa = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId) + " AND name = 'Richmond (TX)'", db_conn, "name")
 
         aos_gf = gravity_forms.get_entries(OrgTypes.AO)
         locations = []
@@ -153,10 +152,17 @@ def app():
 
         logging.info("Inserting Locations into 'locations' table")
         for location in locations:
-            db_conn.execute(tableLocations.insert().values(location))
+            #db_conn.execute(tableLocations.insert().values(location))
             a=1
 
         db_conn.commit()
+
+        #############################################
+        # Events
+
+        logging.info("Reading 'orgs' table to get region IDs")
+        orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
+
 
     logging.info("Done.")
 
