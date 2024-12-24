@@ -18,7 +18,9 @@ import_sectors = False
 import_areas = False
 import_regions = False
 import_locations = False
-import_events = True
+import_events = False
+import_event_types = False
+import_event_types_mapping = True
 
 def format_time(raw_time: str) -> str:
 
@@ -61,6 +63,30 @@ def format_start_date(raw_date: str) -> str:
     else:
         return just_date
 
+def format_event_type(event_type_raw: str) -> str:
+    if event_type_raw == "Cycling":
+        return "Bike"
+    elif event_type_raw == "Strength/Conditioning/Tabata/WIB" or event_type_raw == "CORE":
+        return "Bootcamp"
+    elif event_type_raw == "Obstacle Training" or event_type_raw == "Sandbag":
+        return "Gear"
+    elif event_type_raw == "Mobility/Stretch":
+        return "Mobility"
+    elif event_type_raw == "Run with Pain Stations" or event_type_raw == "Speed/Strength Running":
+        return "Run"
+    else:
+        return event_type_raw
+
+def remove_duplicates(raw_list: list) -> list:
+    seen = set()
+    new_list = []
+    for d in raw_list:
+        t = tuple(d.items())
+        if t not in seen:
+            seen.add(t)
+            new_list.append(d)
+    return new_list
+
 def app():
     gravity_forms = GravityForms()
     
@@ -102,6 +128,9 @@ def app():
         tableOrgs = Table('orgs',MetaData(), autoload_with=pool)
         tableLocations = Table('locations',MetaData(), autoload_with=pool)
         tableEvents = Table('events',MetaData(), autoload_with=pool)
+        tableEventTypes = Table('event_types',MetaData(), autoload_with=pool)
+        tableEventTypesXOrgs = Table('event_types_x_org',MetaData(), autoload_with=pool)
+        tableEventTypesXEvents = Table('events_x_event_types',MetaData(), autoload_with=pool)
 
         #############################################
         # Sectors
@@ -178,7 +207,7 @@ def app():
         #############################################
         # Interlude
         
-        if import_locations or import_events:
+        if import_locations or import_events or import_event_types or import_event_types_mapping:
             logging.info("Reading 'orgs' table to get region IDs")
             orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
             
@@ -191,21 +220,19 @@ def app():
 
             locations = []
             for location_gf in aos_gf:
-
-                if import_locations:
-                    locations.append({
-                        'org_id': orgRegions.loc[location_gf["Region"], "id"],
-                        'name': location_gf["Workout Name"] + " (" + location_gf["Day of the Week"] + ")",
-                        'is_active': True,
-                        'lat': location_gf["Latitude"],
-                        'lon': location_gf["Longitude"],
-                        'address_street': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Street Address"] + " " + location_gf["Address Address Line 2"],
-                        'address_city': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address City"],
-                        'address_state': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address State / Province / Region"],
-                        'address_zip': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address ZIP / Postal Code"],
-                        'address_country': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Country"],
-                        'meta' : {'gravity_form_id' : location_gf["id"]}
-                    })
+                locations.append({
+                    'org_id': orgRegions.loc[location_gf["Region"], "id"],
+                    'name': location_gf["Workout Name"] + " (" + location_gf["Day of the Week"] + ")",
+                    'is_active': True,
+                    'lat': location_gf["Latitude"],
+                    'lon': location_gf["Longitude"],
+                    'address_street': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Street Address"] + " " + location_gf["Address Address Line 2"],
+                    'address_city': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address City"],
+                    'address_state': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address State / Province / Region"],
+                    'address_zip': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address ZIP / Postal Code"],
+                    'address_country': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Country"],
+                    'meta' : {'gravity_form_id' : location_gf["id"]}
+                })
         
             logging.info("Inserting Locations into 'locations' table")
             for location in locations:
@@ -222,25 +249,74 @@ def app():
 
             events = []
             for event_gf in aos_gf:
-
-                if import_events:
-                    events.append({
-                        'org_id': orgRegions.loc[event_gf["Region"], "id"],
-                        'location_id' : location_ids_and_gf.loc[event_gf["id"], "id"],
-                        'name': event_gf["Workout Name"],
-                        'description' : event_gf["Workout Notes"],
-                        'is_series': True,
-                        'is_active': True,
-                        'highlight' : False,
-                        'start_date': format_start_date(event_gf["date_created"]),
-                        'start_time': format_time_start(event_gf["Time of Day"]),
-                        'end_time': format_time_end(event_gf["Time of Day"]),
-                        'day_of_week' : format_day_of_week(event_gf["Day of the Week"]),
-                        'recurrence_pattern' : 'weekly'
-                    })
+                events.append({
+                    'org_id': orgRegions.loc[event_gf["Region"], "id"],
+                    'location_id' : location_ids_and_gf.loc[event_gf["id"], "id"],
+                    'name': event_gf["Workout Name"],
+                    'description' : event_gf["Workout Notes"],
+                    'is_series': True,
+                    'is_active': True,
+                    'highlight' : False,
+                    'start_date': format_start_date(event_gf["date_created"]),
+                    'start_time': format_time_start(event_gf["Time of Day"]),
+                    'end_time': format_time_end(event_gf["Time of Day"]),
+                    'day_of_week' : format_day_of_week(event_gf["Day of the Week"]),
+                    'recurrence_pattern' : 'weekly'
+                })
             
             logging.info("Inserting Events into 'events' table")
             db_conn.execute(insert(tableEvents), events)           
+            db_conn.commit()
+
+        #############################################
+        # Event Types
+
+        if import_event_types:
+            event_types = [
+                {'name': "Bike", 'acronym': "BK", 'category_id': 1},
+                {'name': "Bootcamp", 'acronym': "BC", 'category_id': 1},
+                {'name': "Gear", 'acronym': "GE", 'category_id': 1},
+                {'name': "Mobility", 'acronym': "MO", 'category_id': 1},
+                {'name': "Ruck", 'acronym': "RK", 'category_id': 1},
+                {'name': "Run", 'acronym': "RN", 'category_id': 1},
+                {'name': "Swimming", 'acronym': "SW", 'category_id': 1},
+                {'name': "Wild Card", 'acronym': "WC", 'category_id': 1}
+            ]
+        
+            logging.info("Inserting predefined Event Types into 'event_types' table")
+            db_conn.execute(insert(tableEventTypes), event_types)
+            db_conn.commit()
+
+        #############################################
+        # Event Type Mapping
+
+        if import_event_types_mapping:
+            logging.info("Reading 'event_types' table to get event type IDs")
+            event_type_ids = pd.read_sql_query("SELECT * FROM event_types", db_conn, "name")
+            event_ids_by_gf = pd.read_sql_query("select e.id as event_id, l.id as location_id, l.org_id as region_id, l.meta ->> 'gravity_form_id' as gf_id from events e  left join locations l on l.id = e.location_id", db_conn, "gf_id")
+
+            event_types_x_orgs = []
+            event_types_x_events = []
+            for event_gf in aos_gf:
+                event_types_x_orgs.append({
+                    'event_type_id': event_type_ids.loc[format_event_type(event_gf["Workout Type"]), "id"],
+                    'org_id' : event_ids_by_gf.loc[event_gf["id"], "region_id"],
+                    'is_default': False
+                })
+
+                event_types_x_events.append({
+                    'event_type_id': event_type_ids.loc[format_event_type(event_gf["Workout Type"]), "id"],
+                    'event_id' : event_ids_by_gf.loc[event_gf["id"], "event_id"]
+                })
+            
+            event_types_x_orgs = remove_duplicates(event_types_x_orgs)
+
+            logging.info("Inserting Event Type Mappings into 'event_types_x_org' table")
+            db_conn.execute(insert(tableEventTypesXOrgs), event_types_x_orgs)
+            db_conn.commit()
+
+            logging.info("Inserting Event Type Mappings into 'events_x_event_types' table")
+            db_conn.execute(insert(tableEventTypesXEvents), event_types_x_events)
             db_conn.commit()
 
     logging.info("Done.")
