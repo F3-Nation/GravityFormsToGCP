@@ -7,12 +7,59 @@ from google.cloud.sql.connector import Connector, IPTypes
 import google.cloud.logging
 import pg8000
 
-from sqlalchemy import Table, MetaData, create_engine
+from sqlalchemy import Table, MetaData, create_engine, insert
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
 googleLoggingClient = google.cloud.logging.Client()
 googleLoggingClient.setup_logging()
+
+import_sectors = False
+import_areas = False
+import_regions = False
+import_locations = False
+import_events = True
+
+def format_time(raw_time: str) -> str:
+
+    ampm_indicator = raw_time[6].lower()
+    hours = int(raw_time[:2])
+    colon_minutes = raw_time[2:5]
+
+    if ampm_indicator == "p" and hours < 12:
+        hours = hours + 12
+    
+    return str(hours).zfill(2) + colon_minutes
+
+def format_time_start(raw_time: str) -> str:
+    return format_time(raw_time=raw_time[:8])
+
+def format_time_end(raw_time: str) -> str:
+    return format_time(raw_time=raw_time[11:])
+
+def format_day_of_week(day_str: str) -> int:
+    if day_str == "Monday":
+        return 0
+    elif day_str == "Tuesday":
+        return 1
+    elif day_str == "Wednesday":
+        return 2
+    elif day_str == "Thursday":
+        return 3
+    elif day_str == "Friday":
+        return 4
+    elif day_str == "Saturday":
+        return 5
+    elif day_str == "Sunday":
+        return 6
+
+def format_start_date(raw_date: str) -> str:
+    just_date = raw_date[:10]
+    
+    if just_date == '0000-00-00':
+        return '2024-01-01'
+    else:
+        return just_date
 
 def app():
     gravity_forms = GravityForms()
@@ -59,110 +106,142 @@ def app():
         #############################################
         # Sectors
 
-        logging.info("Loading metadata for table 'orgs'.")
+        if import_sectors:
+            logging.info("Loading metadata for table 'orgs'.")
+            
+            sectors = [
+                {'org_type_id': orgTypeSectorId, 'name': "West", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "North Central", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "Northeast", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "South Central", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "Southeast", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "Mid Southeast", 'is_active': True},
+                {'org_type_id': orgTypeSectorId, 'name': "International", 'is_active': True}
+            ]
         
-        sectors = [
-            {'org_type_id': orgTypeSectorId, 'name': "West", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "North Central", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "Northeast", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "South Central", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "Southeast", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "Mid Southeast", 'is_active': True},
-            {'org_type_id': orgTypeSectorId, 'name': "International", 'is_active': True}
-        ]
+            logging.info("Inserting Sectors into 'orgs' table")
+            for sector in sectors:
+                db_conn.execute(tableOrgs.insert().values(sector))
 
-        logging.info("Inserting Sectors into 'orgs' table")
-        for sector in sectors:
-            #db_conn.execute(tableOrgs.insert().values(sector))
-            a=1
-
-        db_conn.commit()
+            db_conn.commit()
 
         #############################################
         # Areas
 
-        logging.info("Reading 'orgs' table to get sector IDs")
-        orgSectors = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeSectorId), db_conn, "name")
-        
-        areas_gf = gravity_forms.get_entries(OrgTypes.Area)
-        areas = []
-        for area_gf in areas_gf:
-            areas.append({
-                'org_type_id': orgTypeAreaId,
-                'parent_id': orgSectors.loc[area_gf["Sector"], "id"],
-                'name': area_gf["Area Name"],
-                'is_active': True
-            })
+        if import_areas:
+            logging.info("Reading 'orgs' table to get sector IDs")
+            orgSectors = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeSectorId), db_conn, "name")
+            
+            areas_gf = gravity_forms.get_entries(OrgTypes.Area)
+            areas = []
+            for area_gf in areas_gf:
+                areas.append({
+                    'org_type_id': orgTypeAreaId,
+                    'parent_id': orgSectors.loc[area_gf["Sector"], "id"],
+                    'name': area_gf["Area Name"],
+                    'is_active': True
+                })
 
-        logging.info("Inserting Areas into 'orgs' table")
-        for area in areas:
-            #db_conn.execute(tableOrgs.insert().values(area))
-            a=1
+            logging.info("Inserting Areas into 'orgs' table")
+            for area in areas:
+                db_conn.execute(tableOrgs.insert().values(area))
 
-        db_conn.commit()
+            db_conn.commit()
 
         #############################################
         # Regions
 
-        logging.info("Reading 'orgs' table to get area IDs")
-        orgAreas = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeAreaId), db_conn, "name")
+        if import_regions:
+            logging.info("Reading 'orgs' table to get area IDs")
+            orgAreas = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeAreaId), db_conn, "name")
 
-        regions_gf = gravity_forms.get_entries(OrgTypes.Region)
-        regions = []
-        for region_gf in regions_gf:
-            regions.append({
-                'org_type_id': orgTypeRegionId,
-                'parent_id': orgAreas.loc[region_gf["Area"], "id"],
-                'name': region_gf["Region Name"],
-                'is_active': True,
-                'website': None if region_gf["Region Website"] == '' or 'f3nation.com' in region_gf["Region Website"] or 'facebook.com' in region_gf["Region Website"] or 'fb.me' in region_gf["Region Website"] else region_gf["Region Website"],
-                'email': None if region_gf["General Email"] == '' else region_gf["General Email"],
-                'twitter': None if region_gf["Region Twitter Handle"] == '' else region_gf["Region Twitter Handle"],
-                'facebook': region_gf["Region Website"] if 'facebook.com' in region_gf["Region Website"] or 'fb.me' in region_gf["Region Website"] else None
-            })
+            regions_gf = gravity_forms.get_entries(OrgTypes.Region)
+            regions = []
+            for region_gf in regions_gf:
+                regions.append({
+                    'org_type_id': orgTypeRegionId,
+                    'parent_id': orgAreas.loc[region_gf["Area"], "id"],
+                    'name': region_gf["Region Name"],
+                    'is_active': True,
+                    'website': None if region_gf["Region Website"] == '' or 'f3nation.com' in region_gf["Region Website"] or 'facebook.com' in region_gf["Region Website"] or 'fb.me' in region_gf["Region Website"] else region_gf["Region Website"],
+                    'email': None if region_gf["General Email"] == '' else region_gf["General Email"],
+                    'twitter': None if region_gf["Region Twitter Handle"] == '' else region_gf["Region Twitter Handle"],
+                    'facebook': region_gf["Region Website"] if 'facebook.com' in region_gf["Region Website"] or 'fb.me' in region_gf["Region Website"] else None
+                })
+        
+            logging.info("Inserting Regions into 'orgs' table")
+            for region in regions:
+                db_conn.execute(tableOrgs.insert().values(region))
 
-        logging.info("Inserting Regions into 'orgs' table")
-        for region in regions:
-            #db_conn.execute(tableOrgs.insert().values(region))
-            a=1
+            db_conn.commit()
 
-        db_conn.commit()
-
+        #############################################
+        # Interlude
+        
+        if import_locations or import_events:
+            logging.info("Reading 'orgs' table to get region IDs")
+            orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
+            
+            aos_gf = gravity_forms.get_entries(OrgTypes.AO)
+        
         #############################################
         # Locations
 
-        logging.info("Reading 'orgs' table to get region IDs")
-        orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
+        if import_locations:
 
-        aos_gf = gravity_forms.get_entries(OrgTypes.AO)
-        locations = []
-        for location_gf in aos_gf:
-            locations.append({
-                'org_id': orgRegions.loc[location_gf["Region"], "id"],
-                'name': location_gf["Workout Name"] + " (" + location_gf["Day of the Week"] + ")",
-                'is_active': True,
-                'lat': location_gf["Latitude"],
-                'lon': location_gf["Longitude"],
-                'address_street': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Street Address"] + " " + location_gf["Address Address Line 2"],
-                'address_city': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address City"],
-                'address_state': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address State / Province / Region"],
-                'address_zip': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address ZIP / Postal Code"],
-                'address_country': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Country"]
-            })
+            locations = []
+            for location_gf in aos_gf:
 
-        logging.info("Inserting Locations into 'locations' table")
-        for location in locations:
-            #db_conn.execute(tableLocations.insert().values(location))
-            a=1
-
-        db_conn.commit()
+                if import_locations:
+                    locations.append({
+                        'org_id': orgRegions.loc[location_gf["Region"], "id"],
+                        'name': location_gf["Workout Name"] + " (" + location_gf["Day of the Week"] + ")",
+                        'is_active': True,
+                        'lat': location_gf["Latitude"],
+                        'lon': location_gf["Longitude"],
+                        'address_street': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Street Address"] + " " + location_gf["Address Address Line 2"],
+                        'address_city': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address City"],
+                        'address_state': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address State / Province / Region"],
+                        'address_zip': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address ZIP / Postal Code"],
+                        'address_country': None if location_gf["Is this address accurate?"] == "No" else location_gf["Address Country"],
+                        'meta' : {'gravity_form_id' : location_gf["id"]}
+                    })
+        
+            logging.info("Inserting Locations into 'locations' table")
+            for location in locations:
+                db_conn.execute(tableLocations.insert().values(location))
+            
+            db_conn.commit()
 
         #############################################
         # Events
 
-        logging.info("Reading 'orgs' table to get region IDs")
-        orgRegions = pd.read_sql_query("SELECT * FROM orgs WHERE org_type_id = " + str(orgTypeRegionId), db_conn, "name")
+        if import_events:  
 
+            location_ids_and_gf = pd.read_sql_query("SELECT id, meta ->> 'gravity_form_id' as gf_id FROM locations", db_conn, "gf_id")
+
+            events = []
+            for event_gf in aos_gf:
+
+                if import_events:
+                    events.append({
+                        'org_id': orgRegions.loc[event_gf["Region"], "id"],
+                        'location_id' : location_ids_and_gf.loc[event_gf["id"], "id"],
+                        'name': event_gf["Workout Name"],
+                        'description' : event_gf["Workout Notes"],
+                        'is_series': True,
+                        'is_active': True,
+                        'highlight' : False,
+                        'start_date': format_start_date(event_gf["date_created"]),
+                        'start_time': format_time_start(event_gf["Time of Day"]),
+                        'end_time': format_time_end(event_gf["Time of Day"]),
+                        'day_of_week' : format_day_of_week(event_gf["Day of the Week"]),
+                        'recurrence_pattern' : 'weekly'
+                    })
+            
+            logging.info("Inserting Events into 'events' table")
+            db_conn.execute(insert(tableEvents), events)           
+            db_conn.commit()
 
     logging.info("Done.")
 
