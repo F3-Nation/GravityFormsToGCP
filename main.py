@@ -10,7 +10,7 @@ import pg8000
 from sqlalchemy import Table, MetaData, create_engine, insert
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 googleLoggingClient = google.cloud.logging.Client()
 googleLoggingClient.setup_logging()
 
@@ -20,7 +20,7 @@ import_regions = False
 import_locations = False
 import_events = False
 import_event_types = False
-import_event_types_mapping = True
+import_event_types_mapping = False
 
 def format_time(raw_time: str) -> str:
 
