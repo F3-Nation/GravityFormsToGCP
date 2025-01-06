@@ -19,8 +19,8 @@ import_areas = False
 import_regions = False
 import_locations = False
 import_events = False
-import_event_types = False
-import_event_types_mapping = False
+import_event_types = True
+import_event_types_mapping = True
 
 def format_time(raw_time: str) -> str:
 
@@ -271,16 +271,19 @@ def app():
         #############################################
         # Event Types
 
+        event_categories = pd.read_sql_query("SELECT * FROM event_categories", db_conn, "name")
+        first_f_event_category_id = event_categories.loc["1st F - Core Workout", "id"]
+
         if import_event_types:
             event_types = [
-                {'name': "Bike", 'acronym': "BK", 'category_id': 1},
-                {'name': "Bootcamp", 'acronym': "BC", 'category_id': 1},
-                {'name': "Gear", 'acronym': "GE", 'category_id': 1},
-                {'name': "Mobility", 'acronym': "MO", 'category_id': 1},
-                {'name': "Ruck", 'acronym': "RK", 'category_id': 1},
-                {'name': "Run", 'acronym': "RN", 'category_id': 1},
-                {'name': "Swimming", 'acronym': "SW", 'category_id': 1},
-                {'name': "Wild Card", 'acronym': "WC", 'category_id': 1}
+                {'name': "Bike", 'acronym': "BK", 'category_id': first_f_event_category_id},
+                {'name': "Bootcamp", 'acronym': "BC", 'category_id': first_f_event_category_id},
+                {'name': "Gear", 'acronym': "GE", 'category_id': first_f_event_category_id},
+                {'name': "Mobility", 'acronym': "MO", 'category_id': first_f_event_category_id},
+                {'name': "Ruck", 'acronym': "RK", 'category_id': first_f_event_category_id},
+                {'name': "Run", 'acronym': "RN", 'category_id': first_f_event_category_id},
+                {'name': "Swimming", 'acronym': "SW", 'category_id': first_f_event_category_id},
+                {'name': "Wild Card", 'acronym': "WC", 'category_id': first_f_event_category_id}
             ]
         
             logging.info("Inserting predefined Event Types into 'event_types' table")
