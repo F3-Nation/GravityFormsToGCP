@@ -282,6 +282,7 @@ def app():
                 {'name': "Mobility", 'acronym': "MO", 'category_id': first_f_event_category_id},
                 {'name': "Ruck", 'acronym': "RK", 'category_id': first_f_event_category_id},
                 {'name': "Run", 'acronym': "RN", 'category_id': first_f_event_category_id},
+                {'name': "Sports", 'acronym': "SP", 'category_id': first_f_event_category_id},
                 {'name': "Swimming", 'acronym': "SW", 'category_id': first_f_event_category_id},
                 {'name': "Wild Card", 'acronym': "WC", 'category_id': first_f_event_category_id}
             ]
